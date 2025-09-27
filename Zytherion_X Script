@@ -1,0 +1,629 @@
+-- Zytherion X | Final UI (mobile + pc) by @tradezon0
+-- Use with Krnl (or executor that allows CoreGui)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ====== state ======
+local state = {
+    esp = false,
+    speed = false,
+    god = false,
+    infjump = false,
+    fly = false,
+    desiredSpeed = 50,
+    defaultSpeed = 16,
+    speedTrail = nil,
+}
+
+-- helper to get character/humanoid
+local function getChar() return LocalPlayer.Character end
+local function getHum()
+    local c = getChar()
+    if c then return c:FindFirstChildOfClass("Humanoid") end
+end
+local function getHRP()
+    local c = getChar()
+    if c then return c:FindFirstChild("HumanoidRootPart") end
+end
+
+-- safe parent to CoreGui (Krnl allows)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZytherionX_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = CoreGui
+
+-- ===== Left toolbar with logo + toggle button (old style) =====
+local Toolbar = Instance.new("Frame", screenGui)
+Toolbar.Name = "Toolbar"
+Toolbar.Size = UDim2.new(0,72,0,240)
+Toolbar.Position = UDim2.new(0, 12, 0, 110)
+Toolbar.BackgroundTransparency = 1
+
+local LogoImage = Instance.new("ImageLabel", Toolbar)
+LogoImage.Size = UDim2.new(0,64,0,64)
+LogoImage.Position = UDim2.new(0,4,0,6)
+LogoImage.BackgroundTransparency = 1
+LogoImage.Image = "rbxassetid://76309769387876"
+
+local ToggleSquare = Instance.new("ImageButton", Toolbar)
+ToggleSquare.Name = "ToggleSquare"
+ToggleSquare.Size = UDim2.new(0,52,0,52)
+ToggleSquare.Position = UDim2.new(0,10,0,80)
+ToggleSquare.BackgroundColor3 = Color3.fromRGB(36,36,42)
+ToggleSquare.AutoButtonColor = true
+ToggleSquare.Image = ""
+local sqCorner = Instance.new("UICorner", ToggleSquare); sqCorner.CornerRadius = UDim.new(0,12)
+local sqImg = Instance.new("ImageLabel", ToggleSquare)
+sqImg.Image = "rbxassetid://76309769387876"
+sqImg.Size = UDim2.new(0.82,0,0.82,0)
+sqImg.Position = UDim2.new(0.09,0,0.09,0)
+sqImg.BackgroundTransparency = 1
+
+-- ===== Main Menu (center) - old visual style restored =====
+local Main = Instance.new("Frame", screenGui)
+Main.Name = "MainMenu"
+Main.Size = UDim2.new(0, 320, 0, 420)
+Main.Position = UDim2.new(0.5, -160, 0.5, -210)
+Main.AnchorPoint = Vector2.new(0.5,0.5)
+Main.Active = true
+Main.Draggable = true
+Main.BackgroundColor3 = Color3.fromRGB(22,22,26)
+local mainCorner = Instance.new("UICorner", Main); mainCorner.CornerRadius = UDim.new(0,16)
+local mainStroke = Instance.new("UIStroke", Main); mainStroke.Color = Color3.fromRGB(60,60,66); mainStroke.Thickness = 1
+
+-- header title (old style font & color)
+local Header = Instance.new("TextLabel", Main)
+Header.Size = UDim2.new(1,0,0,44)
+Header.Position = UDim2.new(0,0,0,8)
+Header.BackgroundTransparency = 1
+Header.Text = "Zytherion X"
+Header.Font = Enum.Font.Arcade -- Minecraft-like
+Header.TextSize = 24
+Header.TextColor3 = Color3.fromRGB(80,230,170)
+Header.TextStrokeTransparency = 0.6
+Header.TextXAlignment = Enum.TextXAlignment.Center
+
+-- tabs (carousel-like)
+local TabsHolder = Instance.new("Frame", Main)
+TabsHolder.Size = UDim2.new(1, -20, 0, 40)
+TabsHolder.Position = UDim2.new(0,10,0,60)
+TabsHolder.BackgroundTransparency = 1
+local tabs = {"Combat","Visuals","Movement","Misc","Credits"}
+local tabButtons = {}
+local pages = {}
+
+local function createPage(name)
+    local page = Instance.new("Frame", Main)
+    page.Name = name.."Page"
+    page.Size = UDim2.new(1, -20, 1, -140)
+    page.Position = UDim2.new(0, 10, 0, 110)
+    page.BackgroundTransparency = 1
+    page.Visible = false
+
+    local scroll = Instance.new("ScrollingFrame", page)
+    scroll.Size = UDim2.new(1, 0, 1, 0)
+    scroll.CanvasSize = UDim2.new(0,0,0,0)
+    scroll.ScrollBarThickness = 6
+    scroll.BackgroundTransparency = 1
+    local layout = Instance.new("UIListLayout", scroll)
+    layout.Padding = UDim.new(0,8)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    scroll:GetPropertyChangedSignal("CanvasSize"):Connect(function()
+        -- keep nothing
+    end)
+
+    pages[name] = {frame = page, scroll = scroll, layout = layout}
+    return pages[name]
+end
+
+for i, name in ipairs(tabs) do
+    local b = Instance.new("TextButton", TabsHolder)
+    b.Size = UDim2.new(0, 60, 1, 0)
+    b.Position = UDim2.new(0, (i-1)*64, 0, 0)
+    b.Text = name
+    b.Font = Enum.Font.Arcade
+    b.TextSize = 14
+    b.BackgroundColor3 = Color3.fromRGB(30,30,36)
+    b.TextColor3 = Color3.fromRGB(210,210,210)
+    b.AutoButtonColor = true
+    local br = Instance.new("UICorner", b); br.CornerRadius = UDim.new(0,8)
+    tabButtons[name] = b
+    createPage(name)
+end
+
+-- show first tab
+pages["Combat"].frame.Visible = true
+tabButtons["Combat"].BackgroundColor3 = Color3.fromRGB(70,40,90)
+
+-- switch tab handler
+for name, btn in pairs(tabButtons) do
+    btn.Activated:Connect(function()
+        for n, t in pairs(tabButtons) do
+            t.BackgroundColor3 = Color3.fromRGB(30,30,36)
+            pages[n].frame.Visible = false
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(70,40,90)
+        pages[name].frame.Visible = true
+    end)
+end
+
+-- helper to create toggle entries inside a page (works on mobile via Activated)
+local function makeToggle(pageName, labelText, initial, onEnable, onDisable)
+    local page = pages[pageName]
+    local container = Instance.new("Frame", page.scroll)
+    container.Size = UDim2.new(1, -8, 0, 44)
+    container.BackgroundColor3 = Color3.fromRGB(34,34,38)
+    local ccorner = Instance.new("UICorner", container); ccorner.CornerRadius = UDim.new(0,10)
+
+    local txt = Instance.new("TextLabel", container)
+    txt.Size = UDim2.new(0.78, -10, 1, 0)
+    txt.Position = UDim2.new(0,10,0,0)
+    txt.BackgroundTransparency = 1
+    txt.Text = labelText
+    txt.Font = Enum.Font.Arcade
+    txt.TextSize = 18
+    txt.TextColor3 = Color3.fromRGB(230,230,230)
+    txt.TextXAlignment = Enum.TextXAlignment.Left
+
+    local toggle = Instance.new("TextButton", container)
+    toggle.Size = UDim2.new(0.18, -12, 0, 34)
+    toggle.Position = UDim2.new(0.82, 6, 0, 5)
+    toggle.BackgroundColor3 = initial and Color3.fromRGB(0,200,80) or Color3.fromRGB(200,60,60)
+    toggle.Text = initial and "ON" or "OFF"
+    toggle.Font = Enum.Font.Arcade
+    toggle.TextSize = 14
+    local tcorner = Instance.new("UICorner", toggle); tcorner.CornerRadius = UDim.new(0,8)
+
+    local enabled = initial
+    toggle.Activated:Connect(function()
+        enabled = not enabled
+        toggle.BackgroundColor3 = enabled and Color3.fromRGB(0,200,80) or Color3.fromRGB(200,60,60)
+        toggle.Text = enabled and "ON" or "OFF"
+        if enabled then
+            if onEnable then pcall(onEnable) end
+        else
+            if onDisable then pcall(onDisable) end
+        end
+    end)
+
+    -- update canvas size
+    page.scroll.CanvasSize = UDim2.new(0,0,0, page.scroll.CanvasSize.Y.Offset + 52)
+    return container, toggle
+end
+
+-- ====== CORE FEATURES implementations ======
+
+-- -------- ESP (Visuals) --------
+local espGuis = {} -- map player -> billboard
+local function createESPForPlayer(plr)
+    if not plr or plr == LocalPlayer then return end
+    if espGuis[plr] and espGuis[plr].Parent then return end
+    local char = plr.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+    if not head then return end
+
+    local bill = Instance.new("BillboardGui")
+    bill.Name = "ZytherionESP"
+    bill.Adornee = head
+    bill.Size = UDim2.new(4,0,2.2,0)
+    bill.AlwaysOnTop = true
+    bill.Parent = head
+
+    local bg = Instance.new("Frame", bill)
+    bg.Size = UDim2.new(1,0,1,0)
+    bg.Position = UDim2.new(0,0,0,0)
+    bg.BackgroundColor3 = Color3.fromRGB(12,12,16)
+    bg.BackgroundTransparency = 0.45
+    bg.BorderSizePixel = 0
+    local bgCorner = Instance.new("UICorner", bg); bgCorner.CornerRadius = UDim.new(0,8)
+
+    local nameLabel = Instance.new("TextLabel", bill)
+    nameLabel.Size = UDim2.new(1,0,0,28)
+    nameLabel.Position = UDim2.new(0,-0, -0.15)
+    nameLabel.Text = plr.Name
+    nameLabel.TextColor3 = Color3.fromRGB(120,255,140)
+    nameLabel.Font = Enum.Font.Arcade
+    nameLabel.TextSize = 20
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextStrokeTransparency = 0.6
+
+    -- small indicator circle (team color or white)
+    local indicator = Instance.new("Frame", bill)
+    indicator.Size = UDim2.new(0,10,0,10)
+    indicator.Position = UDim2.new(0.92, 0, 0.02, 0)
+    indicator.BackgroundColor3 = (plr.Team and plr.Team.TeamColor and Color3.fromRGB(plr.Team.TeamColor.R * 255, plr.Team.TeamColor.G * 255, plr.Team.TeamColor.B * 255)) or Color3.fromRGB(200,200,200)
+    indicator.BorderSizePixel = 0
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(1,0)
+
+    espGuis[plr] = bill
+
+    -- cleanup on removing
+    plr.CharacterRemoving:Connect(function()
+        if espGuis[plr] and espGuis[plr].Parent then
+            espGuis[plr]:Destroy()
+        end
+        espGuis[plr] = nil
+    end)
+end
+
+local function enableESP()
+    -- create for all existing players with characters
+    for _,p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            createESPForPlayer(p)
+        end
+    end
+    -- connect new players/characters
+    if not state._espCon then
+        state._espCon = Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function()
+                if state.esp then
+                    createESPForPlayer(p)
+                end
+            end)
+        end)
+    end
+end
+
+local function disableESP()
+    for p,bill in pairs(espGuis) do
+        if bill and bill.Parent then
+            bill:Destroy()
+        end
+    end
+    espGuis = {}
+    if state._espCon then state._espCon:Disconnect(); state._espCon = nil end
+end
+
+-- -------- Speed Boost (Movement) --------
+local SpeedMenu = Instance.new("Frame", screenGui)
+SpeedMenu.Size = UDim2.new(0,220,0,140)
+SpeedMenu.Position = UDim2.new(0.7, 0, 0.28, 0)
+SpeedMenu.BackgroundColor3 = Color3.fromRGB(28,28,34)
+SpeedMenu.Visible = false
+local speedCorner = Instance.new("UICorner", SpeedMenu); speedCorner.CornerRadius = UDim.new(0,12)
+local speedTitle = Instance.new("TextLabel", SpeedMenu)
+speedTitle.Size = UDim2.new(1,0,0,32); speedTitle.Position = UDim2.new(0,0,0,6)
+speedTitle.BackgroundTransparency = 1
+speedTitle.Text = "Speed Boost"
+speedTitle.Font = Enum.Font.Arcade
+speedTitle.TextSize = 18
+speedTitle.TextColor3 = Color3.fromRGB(230,230,230)
+
+local speedToggle = Instance.new("TextButton", SpeedMenu)
+speedToggle.Size = UDim2.new(0.62,0,0,36)
+speedToggle.Position = UDim2.new(0.06,0,0.4,0)
+speedToggle.Text = "Toggle"
+speedToggle.Font = Enum.Font.Arcade
+local speedToggleCorner = Instance.new("UICorner", speedToggle); speedToggleCorner.CornerRadius = UDim.new(0,10)
+
+local speedIndicator = Instance.new("Frame", SpeedMenu)
+speedIndicator.Size = UDim2.new(0,18,0,18)
+speedIndicator.Position = UDim2.new(0.78,0,0.44,0)
+speedIndicator.BackgroundColor3 = Color3.fromRGB(200,50,50)
+Instance.new("UICorner", speedIndicator).CornerRadius = UDim.new(1,0)
+
+-- speed +/- controls
+local spDown = Instance.new("TextButton", SpeedMenu)
+spDown.Size = UDim2.new(0.18,0,0,26); spDown.Position = UDim2.new(0.06,0,0.78,0); spDown.Text = "-"
+spDown.Font = Enum.Font.Arcade
+Instance.new("UICorner", spDown).CornerRadius = UDim.new(0,8)
+local spLabel = Instance.new("TextLabel", SpeedMenu)
+spLabel.Size = UDim2.new(0.5,0,0,26); spLabel.Position = UDim2.new(0.28,0,0.78,0)
+spLabel.BackgroundTransparency = 1
+spLabel.Text = tostring(state.desiredSpeed)
+spLabel.Font = Enum.Font.Arcade; spLabel.TextSize = 16
+local spUp = Instance.new("TextButton", SpeedMenu)
+spUp.Size = UDim2.new(0.18,0,0,26); spUp.Position = UDim2.new(0.78,0,0.78,0); spUp.Text = "+"
+spUp.Font = Enum.Font.Arcade
+Instance.new("UICorner", spUp).CornerRadius = UDim.new(0,8)
+
+-- apply speed
+local speedConnection
+local function enableSpeed()
+    state.speed = true
+    speedIndicator.BackgroundColor3 = Color3.fromRGB(0,200,80)
+    -- set immediately
+    local hum = getHum()
+    if hum then hum.WalkSpeed = state.desiredSpeed end
+    if speedConnection then speedConnection:Disconnect() end
+    speedConnection = RunService.Heartbeat:Connect(function()
+        local hum = getHum()
+        if hum and state.speed then hum.WalkSpeed = state.desiredSpeed end
+    end)
+    -- trail + particles
+    local char = getChar()
+    if char and not char:FindFirstChild("ZytherionTrail") then
+        local hrp = getHRP()
+        if hrp then
+            local a0 = Instance.new("Attachment", hrp); a0.Name = "ZyA0"; a0.Position = Vector3.new(0,1,0)
+            local a1 = Instance.new("Attachment", hrp); a1.Name = "ZyA1"; a1.Position = Vector3.new(0,-1,0)
+            local trail = Instance.new("Trail", hrp); trail.Name = "ZytherionTrail"; trail.Attachment0 = a0; trail.Attachment1 = a1; trail.Lifetime = 0.35; trail.MinLength = 0.05
+            -- animate colors
+            spawn(function()
+                while trail.Parent and state.speed do
+                    for v=0,1,0.02 do
+                        trail.Color = ColorSequence.new(Color3.fromHSV(v,1,1))
+                        task.wait(0.03)
+                    end
+                end
+            end)
+            local p = Instance.new("ParticleEmitter", hrp)
+            p.Name = "ZytherionParticles"
+            p.Texture = "rbxassetid://241594314"
+            p.Rate = 60
+            p.Lifetime = NumberRange.new(0.25)
+            p.Speed = NumberRange.new(0)
+            p.Size = NumberSequence.new(0.6)
+        end
+    end
+end
+
+local function disableSpeed()
+    state.speed = false
+    speedIndicator.BackgroundColor3 = Color3.fromRGB(200,50,50)
+    if speedConnection then speedConnection:Disconnect(); speedConnection = nil end
+    local hum = getHum()
+    if hum then hum.WalkSpeed = state.defaultSpeed end
+    local char = getChar()
+    if char then
+        -- cleanup trail/attachments/particles
+        local hrp = getHRP()
+        if hrp then
+            if hrp:FindFirstChild("ZytherionTrail") then hrp.ZytherionTrail:Destroy() end
+            if hrp:FindFirstChild("ZyA0") then hrp.ZyA0:Destroy() end
+            if hrp:FindFirstChild("ZyA1") then hrp.ZyA1:Destroy() end
+            if hrp:FindFirstChild("ZytherionParticles") then hrp.ZytherionParticles:Destroy() end
+        end
+    end
+end
+
+speedToggle.Activated:Connect(function()
+    if state.speed then disableSpeed() else enableSpeed() end
+    spLabel.Text = tostring(state.desiredSpeed)
+end)
+
+spUp.Activated:Connect(function()
+    state.desiredSpeed = math.clamp(state.desiredSpeed + 5, 16, 220)
+    spLabel.Text = tostring(state.desiredSpeed)
+    if state.speed then enableSpeed() end
+end)
+spDown.Activated:Connect(function()
+    state.desiredSpeed = math.clamp(state.desiredSpeed - 5, 16, 220)
+    spLabel.Text = tostring(state.desiredSpeed)
+    if state.speed then enableSpeed() end
+end)
+
+-- toggle speed menu from main (we'll add the button later)
+
+-- -------- God Mode (Combat tab) --------
+local godConnection
+local savedMaxHealth = nil
+local function enableGod()
+    state.god = true
+    local hum = getHum()
+    if hum then
+        savedMaxHealth = hum.MaxHealth
+        hum.MaxHealth = 1e9
+        hum.Health = hum.MaxHealth
+    end
+    if godConnection and godConnection.Connected then godConnection:Disconnect() end
+    godConnection = RunService.Heartbeat:Connect(function()
+        local hum = getHum()
+        if hum and state.god then
+            hum.Health = hum.MaxHealth
+        end
+    end)
+end
+local function disableGod()
+    state.god = false
+    if godConnection then godConnection:Disconnect(); godConnection = nil end
+    local hum = getHum()
+    if hum and savedMaxHealth then
+        hum.MaxHealth = savedMaxHealth
+        hum.Health = math.min(hum.Health, savedMaxHealth)
+    end
+    savedMaxHealth = nil
+end
+
+-- -------- Infinite Jump (Movement) --------
+local function onJumpRequest()
+    if state.infjump then
+        local hum = getHum()
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            -- neon plate under player
+            local hrp = getHRP()
+            if hrp then
+                local plate = Instance.new("Part", workspace)
+                plate.Anchored = true
+                plate.CanCollide = false
+                plate.Size = Vector3.new(6,1,6)
+                plate.Material = Enum.Material.Neon
+                plate.Color = Color3.fromHSV((tick()%5)/5,1,1)
+                plate.CFrame = hrp.CFrame * CFrame.new(0,-4,0)
+                Debris:AddItem(plate, 0.55)
+            end
+        end
+    end
+end
+UserInputService.JumpRequest:Connect(onJumpRequest)
+
+-- -------- Fly (Movement) --------
+local flyConn
+local flyBV, flyBG
+local flySpeed = 60
+local function enableFly()
+    if state.fly then return end
+    state.fly = true
+    local char = getChar()
+    if not char then return end
+    local hrp = getHRP()
+    if not hrp then return end
+    flyBV = Instance.new("BodyVelocity", hrp)
+    flyBV.MaxForce = Vector3.new(0,0,0) -- will set each tick
+    flyBV.Velocity = Vector3.new(0,0,0)
+    flyBG = Instance.new("BodyGyro", hrp)
+    flyBG.MaxTorque = Vector3.new(0,0,0)
+    flyBG.CFrame = workspace.CurrentCamera.CFrame
+
+    flyConn = RunService.RenderStepped:Connect(function(dt)
+        if not state.fly then return end
+        if not hrp or not getHum() then return end
+        local cam = workspace.CurrentCamera
+        local moveDir = getHum().MoveDirection -- works on mobile joystick and keyboard
+        -- move relative to camera
+        local worldMove = (cam.CFrame:VectorToWorldSpace(moveDir))
+        local vy = 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vy = vy + 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vy = vy - 1 end
+        local final = (worldMove * flySpeed) + Vector3.new(0, vy * (flySpeed*0.7), 0)
+        flyBV.MaxForce = Vector3.new(9e5,9e5,9e5)
+        flyBV.Velocity = final
+        flyBG.MaxTorque = Vector3.new(9e5,9e5,9e5)
+        flyBG.CFrame = cam.CFrame
+    end)
+end
+
+local function disableFly()
+    state.fly = false
+    if flyConn then flyConn:Disconnect(); flyConn = nil end
+    if flyBV then flyBV:Destroy(); flyBV = nil end
+    if flyBG then flyBG:Destroy(); flyBG = nil end
+end
+
+-- ===== Create UI entries in pages =====
+-- Combat: God Mode
+makeToggle("Combat", "God Mode", false,
+    function() enableGod() end,
+    function() disableGod() end)
+
+-- Visuals: ESP toggle (creates/destroys billboards)
+makeToggle("Visuals", "Player ESP (rect + name)", false,
+    function()
+        state.esp = true
+        enableESP()
+    end,
+    function()
+        state.esp = false
+        disableESP()
+    end)
+
+-- Movement: Speed menu button (open), toggle speed direct, inf jump, fly
+-- Speed menu open button inside Movement page as a small control entry
+do
+    local page = pages["Movement"]
+    -- create a container for Speed menu opener
+    local cont = Instance.new("Frame", page.scroll)
+    cont.Size = UDim2.new(1, -8, 0, 44)
+    cont.BackgroundColor3 = Color3.fromRGB(34,34,38)
+    Instance.new("UICorner", cont).CornerRadius = UDim.new(0,10)
+    local label = Instance.new("TextLabel", cont)
+    label.Size = UDim2.new(0.7, -10, 1, 0); label.Position = UDim2.new(0,10,0,0)
+    label.BackgroundTransparency = 1; label.Text = "Speed Boost (open menu)"; label.Font = Enum.Font.Arcade; label.TextSize = 18
+    local openBtn = Instance.new("TextButton", cont)
+    openBtn.Size = UDim2.new(0.28, -12, 0, 34); openBtn.Position = UDim2.new(0.7, 6, 0, 5)
+    openBtn.Text = "Open"; openBtn.Font = Enum.Font.Arcade
+    Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0,8)
+    openBtn.Activated:Connect(function()
+        SpeedMenu.Visible = not SpeedMenu.Visible
+    end)
+    page.scroll.CanvasSize = UDim2.new(0,0,0,page.scroll.CanvasSize.Y.Offset + 52)
+end
+
+makeToggle("Movement", "Infinite Jump (neon plate)", false,
+    function() state.infjump = true end,
+    function() state.infjump = false end)
+
+makeToggle("Movement", "Fly (use joystick/WASD + Space Up)", false,
+    function() enableFly() end,
+    function() disableFly() end)
+
+-- direct toggle Speed (shortcut in Movement)
+makeToggle("Movement", "Speed Boost (direct toggle)", false,
+    function() enableSpeed() end,
+    function() disableSpeed() end)
+
+-- Misc: simple ESP refresh & server hop placeholder (can't reliably teleport from some envs)
+makeToggle("Misc", "ESP Refresh (rebuild)", false,
+    function()
+        -- rebuild ESP if enabled
+        disableESP()
+        if state.esp then enableESP() end
+    end,
+    function()
+        -- nothing on disable
+    end)
+
+-- Credits page (just static)
+do
+    local page = pages["Credits"]
+    local lab = Instance.new("TextLabel", page.frame)
+    lab.Size = UDim2.new(1,0,0,100)
+    lab.Position = UDim2.new(0,0,0,10)
+    lab.BackgroundTransparency = 1
+    lab.Text = "Zytherion X\nScript by @tradezon0\nDesign restored + mobile fixes"
+    lab.TextColor3 = Color3.fromRGB(200,200,200)
+    lab.Font = Enum.Font.Arcade
+    lab.TextSize = 16
+    lab.TextWrapped = true
+end
+
+-- finalize: make sure canvas sizes of pages are updated
+for _, data in pairs(pages) do
+    -- estimate: UIListLayout will set CanvasSize automatically in many environments,
+    -- but we do a simple update based on content height:
+    task.spawn(function()
+        task.wait(0.1)
+        local total = 0
+        for _,child in ipairs(data.scroll:GetChildren()) do
+            if child:IsA("Frame") then
+                total = total + (child.Size.Y.Offset + 8)
+            end
+        end
+        data.scroll.CanvasSize = UDim2.new(0,0,0, math.max(total, 1))
+    end)
+end
+
+-- Toggle menu from left square button (works on mobile through Activated)
+ToggleSquare.Activated:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
+-- auto-create ESP for players who already are in-game if ESP enabled by toggles
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        if state.esp then createESPForPlayer(p) end
+    end)
+end)
+
+-- handle re-applying settings on respawn
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    task.wait(0.6)
+    -- reapply speed/god/fly if enabled
+    if state.speed then enableSpeed() end
+    if state.god then enableGod() end
+    if state.fly then enableFly() end
+    -- esp will auto-create on Player.CharacterAdded handlers above
+end)
+
+-- Cleanup function if needed (call manually to restore defaults)
+local function cleanupAll()
+    disableESP()
+    disableSpeed()
+    disableGod()
+    disableFly()
+    state = nil
+    if screenGui and screenGui.Parent then screenGui:Destroy() end
+end
+
+print("Zytherion X UI loaded (restored old design + mobile fixes).")
